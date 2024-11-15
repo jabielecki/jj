@@ -41,6 +41,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * New `fork_point()` revset function can be used to obtain the fork point
   of multiple commits.
 
+* `jj simplify-parents` now supports configuring the default revset when no
+   `--source` or `--revisions` arguments are provided with the
+   `revsets.simplify-parents` config.
+
 ### Fixed bugs
 
 ## [0.23.0] - 2024-11-06
