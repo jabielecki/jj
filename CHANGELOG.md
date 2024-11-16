@@ -41,6 +41,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * New `fork_point()` revset function can be used to obtain the fork point
   of multiple commits.
 
+* Several commands now support `-f/-t` shorthands for `--from/--to`:
+  - `diff`
+  - `diffedit`
+  - `interdiff`
+  - `op diff`
+  - `restore`
+
 ### Fixed bugs
 
 ## [0.23.0] - 2024-11-06
