@@ -494,3 +494,193 @@ fn test_config() {
     core.watchman.register_snapshot_trigger	Whether to use triggers to monitor for changes in the background.
     ");
 }
+
+fn create_commit(
+    test_env: &TestEnvironment,
+    repo_path: &std::path::Path,
+    name: &str,
+    parents: &[&str],
+    files: &[(&str, Option<&str>)],
+) {
+    if parents.is_empty() {
+        test_env.jj_cmd_ok(repo_path, &["new", "root()", "-m", name]);
+    } else {
+        let mut args = vec!["new", "-m", name];
+        args.extend(parents);
+        test_env.jj_cmd_ok(repo_path, &args);
+    }
+    for (name, content) in files {
+        match content {
+            Some(content) => std::fs::write(repo_path.join(name), content).unwrap(),
+            None => std::fs::remove_file(repo_path.join(name)).unwrap(),
+        }
+    }
+    test_env.jj_cmd_ok(repo_path, &["bookmark", "create", name]);
+}
+
+#[test]
+fn test_files() {
+    let test_env = TestEnvironment::default();
+    test_env.jj_cmd_ok(test_env.env_root(), &["git", "init", "repo"]);
+    let repo_path = test_env.env_root().join("repo");
+
+    create_commit(
+        &test_env,
+        &repo_path,
+        "first",
+        &[],
+        &[
+            ("f_unchanged", Some("unchanged\n")),
+            ("f_modified", Some("not_yet_modified\n")),
+            ("f_not_yet_renamed", Some("renamed\n")),
+            ("f_deleted", Some("not_yet_deleted\n")),
+            // not yet: "added" file
+        ],
+    );
+    create_commit(
+        &test_env,
+        &repo_path,
+        "second",
+        &["first"],
+        &[
+            // "unchanged" file
+            ("f_modified", Some("modified\n")),
+            ("f_renamed", Some("renamed\n")),
+            ("f_deleted", None),
+            ("f_added", Some("added\n")),
+        ],
+    );
+
+    // create a conflicted commit to check the completions of `jj restore`
+    create_commit(
+        &test_env,
+        &repo_path,
+        "conflicted",
+        &["second"],
+        &[
+            ("f_modified", Some("modified_again\n")),
+            ("f_added_2", Some("added_2\n")),
+        ],
+    );
+    test_env.jj_cmd_ok(&repo_path, &["rebase", "-r=@", "-d=first"]);
+
+    // another one on top of the conflicted, to test interdiff behavior
+    create_commit(
+        &test_env,
+        &repo_path,
+        "third",
+        &["conflicted"],
+        &[("f_added_3", Some("added_3\n"))],
+    );
+
+    // "dirty worktree"
+    create_commit(
+        &test_env,
+        &repo_path,
+        "working_copy",
+        &["second"],
+        &[
+            ("f_modified", Some("modified_again\n")),
+            ("f_added_2", Some("added_2\n")),
+        ],
+    );
+
+    let stdout = test_env.jj_cmd_success(&repo_path, &["log", "-r", "all()", "--summary"]);
+    insta::assert_snapshot!(stdout, @r"
+    @  kpqxywon test.user@example.com 2001-02-03 08:05:18 working_copy ae9b17a7
+    │  working_copy
+    │  A f_added_2
+    │  M f_modified
+    ○  zsuskuln test.user@example.com 2001-02-03 08:05:11 second 12ffc2f7
+    │  second
+    │  A f_added
+    │  D f_deleted
+    │  M f_modified
+    │  A f_renamed
+    │ ×  yostqsxw test.user@example.com 2001-02-03 08:05:16 third 3a92af97 conflict
+    │ │  third
+    │ │  A f_added_3
+    │ ×  royxmykx test.user@example.com 2001-02-03 08:05:14 conflicted 14453858 conflict
+    ├─╯  conflicted
+    │    A f_added_2
+    │    M f_modified
+    ○  rlvkpnrz test.user@example.com 2001-02-03 08:05:09 first 2a2f433c
+    │  first
+    │  A f_deleted
+    │  A f_modified
+    │  A f_not_yet_renamed
+    │  A f_unchanged
+    ◆  zzzzzzzz root() 00000000
+    ");
+
+    let mut test_env = test_env;
+    test_env.add_env_var("COMPLETE", "fish");
+    let test_env = test_env;
+
+    let stdout = test_env.jj_cmd_success(&repo_path, &["--", "jj", "file", "show", "f_"]);
+    insta::assert_snapshot!(stdout, @r"
+    f_added
+    f_added_2
+    f_modified
+    f_not_yet_renamed
+    f_renamed
+    f_unchanged
+    ");
+
+    let stdout = test_env.jj_cmd_success(
+        &repo_path,
+        &["--", "jj", "file", "annotate", "-r", "@-", "f_"],
+    );
+    insta::assert_snapshot!(stdout, @r"
+    f_added
+    f_modified
+    f_not_yet_renamed
+    f_renamed
+    f_unchanged
+    ");
+
+    let stdout = test_env.jj_cmd_success(&repo_path, &["--", "jj", "diff", "-r", "@-", "f_"]);
+    insta::assert_snapshot!(stdout, @r"
+    f_added	Added
+    f_deleted	Deleted
+    f_modified	Modified
+    f_renamed	Added
+    ");
+    let stdout = test_env.jj_cmd_success(
+        &repo_path,
+        &["--", "jj", "diff", "--from", "root()", "--to", "@-", "f_"],
+    );
+    insta::assert_snapshot!(stdout, @r"
+    f_added	Added
+    f_modified	Added
+    f_not_yet_renamed	Added
+    f_renamed	Added
+    f_unchanged	Added
+    ");
+
+    // interdiff has a different behavior with --from and --to flags
+    let stdout = test_env.jj_cmd_success(
+        &repo_path,
+        &["--", "jj", "interdiff", "--to=third", "--from=@-", "f_"],
+    );
+    insta::assert_snapshot!(stdout, @r"
+    f_added	Deleted
+    f_added_3	Added
+    f_deleted	Added
+    f_modified	Modified
+    f_renamed	Deleted
+    ");
+
+    // squash has a different behavior with --from and --to flags
+    let stdout = test_env.jj_cmd_success(&repo_path, &["--", "jj", "squash", "-f=root()+", "f_"]);
+    insta::assert_snapshot!(stdout, @r"
+    f_deleted	Added
+    f_modified	Added
+    f_not_yet_renamed	Added
+    f_unchanged	Added
+    ");
+
+    let stdout =
+        test_env.jj_cmd_success(&repo_path, &["--", "jj", "resolve", "-r=conflicted", "f_"]);
+    insta::assert_snapshot!(stdout, @"f_modified");
+}

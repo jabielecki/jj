@@ -37,7 +37,7 @@ use crate::ui::Ui;
 #[derive(clap::Args, Clone, Debug)]
 pub(crate) struct FileAnnotateArgs {
     /// the file to annotate
-    #[arg(value_hint = clap::ValueHint::AnyPath)]
+    #[arg(add = ArgValueCandidates::new(complete::all_revision_files))]
     path: String,
     /// an optional revision to start at
     #[arg(long, short, add = ArgValueCandidates::new(complete::all_revisions))]

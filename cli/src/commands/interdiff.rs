@@ -42,7 +42,7 @@ pub(crate) struct InterdiffArgs {
     #[arg(long, add = ArgValueCandidates::new(complete::all_revisions))]
     to: Option<RevisionArg>,
     /// Restrict the diff to these paths
-    #[arg(value_hint = clap::ValueHint::AnyPath)]
+    #[arg(add = ArgValueCandidates::new(complete::interdiff_files))]
     paths: Vec<String>,
     #[command(flatten)]
     format: DiffFormatArgs,

@@ -51,7 +51,7 @@ pub(crate) struct FileShowArgs {
     )]
     revision: RevisionArg,
     /// Paths to print
-    #[arg(required = true, value_hint = clap::ValueHint::FilePath)]
+    #[arg(required = true, add = ArgValueCandidates::new(complete::all_revision_files))]
     paths: Vec<String>,
 }
 

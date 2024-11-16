@@ -52,7 +52,7 @@ pub(crate) struct FileChmodArgs {
     )]
     revision: RevisionArg,
     /// Paths to change the executable bit for
-    #[arg(required = true, value_hint = clap::ValueHint::AnyPath)]
+    #[arg(required = true, add = ArgValueCandidates::new(complete::all_revision_files))]
     paths: Vec<String>,
 }
 
