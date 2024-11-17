@@ -14,7 +14,7 @@
 
 use std::io::Write;
 
-use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use itertools::Itertools;
 use jj_lib::merge::Merge;
 use jj_lib::merged_tree::MergedTreeBuilder;
@@ -35,7 +35,7 @@ pub(crate) struct FileUntrackArgs {
     ///
     /// The paths could be ignored via a .gitignore or .git/info/exclude (in
     /// colocated repos).
-    #[arg(required = true, add = ArgValueCandidates::new(complete::all_revision_files))]
+    #[arg(required = true, add = ArgValueCompleter::new(complete::all_revision_files))]
     paths: Vec<String>,
 }
 

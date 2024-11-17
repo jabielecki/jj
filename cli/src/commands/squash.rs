@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use itertools::Itertools as _;
 use jj_lib::commit::Commit;
 use jj_lib::commit::CommitIteratorExt;
@@ -92,7 +93,7 @@ pub(crate) struct SquashArgs {
     /// Move only changes to these paths (instead of all paths)
     #[arg(
         conflicts_with_all = ["interactive", "tool"],
-        add = ArgValueCandidates::new(complete::squash_revision_files),
+        add = ArgValueCompleter::new(complete::squash_revision_files),
     )]
     paths: Vec<String>,
     /// The source revision will not be abandoned

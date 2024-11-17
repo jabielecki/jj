@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use itertools::Itertools;
 use jj_lib::copies::CopyRecords;
 use jj_lib::repo::Repo;
@@ -57,7 +58,7 @@ pub(crate) struct DiffArgs {
     #[arg(long, conflicts_with = "revision", add = ArgValueCandidates::new(complete::all_revisions))]
     to: Option<RevisionArg>,
     /// Restrict the diff to these paths
-    #[arg(add = ArgValueCandidates::new(complete::modified_revision_or_range_files))]
+    #[arg(add = ArgValueCompleter::new(complete::modified_revision_or_range_files))]
     paths: Vec<String>,
     #[command(flatten)]
     format: DiffFormatArgs,

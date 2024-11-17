@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use jj_lib::backend::Signature;
 use jj_lib::object_id::ObjectId;
 use jj_lib::repo::Repo;
@@ -42,7 +42,7 @@ pub(crate) struct CommitArgs {
     #[arg(long = "message", short, value_name = "MESSAGE")]
     message_paragraphs: Vec<String>,
     /// Put these paths in the first commit
-    #[arg(add = ArgValueCandidates::new(complete::modified_files))]
+    #[arg(add = ArgValueCompleter::new(complete::modified_files))]
     paths: Vec<String>,
     /// Reset the author to the configured user
     ///

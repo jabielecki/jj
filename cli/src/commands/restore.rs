@@ -15,6 +15,7 @@
 use std::io::Write;
 
 use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use jj_lib::object_id::ObjectId;
 use jj_lib::rewrite::restore_tree;
 use tracing::instrument;
@@ -45,7 +46,7 @@ use crate::ui::Ui;
 #[derive(clap::Args, Clone, Debug)]
 pub(crate) struct RestoreArgs {
     /// Restore only these paths (instead of all paths)
-    #[arg(add = ArgValueCandidates::new(complete::modified_range_files))]
+    #[arg(add = ArgValueCompleter::new(complete::modified_range_files))]
     paths: Vec<String>,
     /// Revision to restore from (source)
     #[arg(long, add = ArgValueCandidates::new(complete::all_revisions))]

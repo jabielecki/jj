@@ -16,6 +16,7 @@ use std::slice;
 
 use clap::ArgGroup;
 use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use tracing::instrument;
 
 use crate::cli_util::CommandHelper;
@@ -42,7 +43,7 @@ pub(crate) struct InterdiffArgs {
     #[arg(long, add = ArgValueCandidates::new(complete::all_revisions))]
     to: Option<RevisionArg>,
     /// Restrict the diff to these paths
-    #[arg(add = ArgValueCandidates::new(complete::interdiff_files))]
+    #[arg(add = ArgValueCompleter::new(complete::interdiff_files))]
     paths: Vec<String>,
     #[command(flatten)]
     format: DiffFormatArgs,

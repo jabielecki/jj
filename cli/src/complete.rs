@@ -479,7 +479,16 @@ mod parse {
     }
 }
 
-fn all_files_from_rev(rev: String) -> Vec<CompletionCandidate> {
+fn dir_prefix_from<'a>(path: &'a str, current: &str) -> Option<&'a str> {
+    path.strip_prefix(current)?
+        .split_once(std::path::MAIN_SEPARATOR)
+        .map(|(next, _)| path.split_at(current.len() + next.len() + 1).0)
+}
+
+fn all_files_from_rev(rev: String, current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    let Some(current) = current.to_str() else {
+        return Vec::new();
+    };
     with_jj(|mut jj, _| {
         let output = jj
             .arg("file")
@@ -490,14 +499,31 @@ fn all_files_from_rev(rev: String) -> Vec<CompletionCandidate> {
             .map_err(user_error)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
-        Ok(stdout.lines().map(CompletionCandidate::new).collect())
+        Ok(stdout
+            .lines()
+            .filter_map(|path| {
+                if !path.starts_with(current) {
+                    return None;
+                }
+                if let Some(dir_path) = dir_prefix_from(path, current) {
+                    return Some(CompletionCandidate::new(dir_path));
+                }
+
+                Some(CompletionCandidate::new(path))
+            })
+            .dedup() // directories may occur multiple times
+            .collect())
     })
 }
 
 fn modified_files_from_rev(
     rev: (String, Option<String>),
     interdiff: bool,
+    current: &std::ffi::OsStr,
 ) -> Vec<CompletionCandidate> {
+    let Some(current) = current.to_str() else {
+        return Vec::new();
+    };
     with_jj(|mut jj, _| {
         let cmd = jj
             .arg(if interdiff { "interdiff" } else { "diff" })
@@ -511,10 +537,18 @@ fn modified_files_from_rev(
 
         Ok(stdout
             .lines()
-            .map(|line| {
+            .filter_map(|line| {
                 let (mode, path) = line
                     .split_once(' ')
                     .expect("diff --summary should contain a space between mode and path");
+
+                if !path.starts_with(current) {
+                    return None;
+                }
+                if let Some(dir_path) = dir_prefix_from(path, current) {
+                    return Some(CompletionCandidate::new(dir_path));
+                }
+
                 let help = match mode {
                     "M" => "Modified".into(),
                     "D" => "Deleted".into(),
@@ -523,13 +557,17 @@ fn modified_files_from_rev(
                     "C" => "Copied".into(),
                     _ => format!("unknown mode: '{mode}'"),
                 };
-                CompletionCandidate::new(path).help(Some(help.into()))
+                Some(CompletionCandidate::new(path).help(Some(help.into())))
             })
+            .dedup() // directories may occur multiple times
             .collect())
     })
 }
 
-fn conflicted_files_from_rev(rev: &str) -> Vec<CompletionCandidate> {
+fn conflicted_files_from_rev(rev: &str, current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    let Some(current) = current.to_str() else {
+        return Vec::new();
+    };
     with_jj(|mut jj, _| {
         let output = jj
             .arg("resolve")
@@ -542,54 +580,65 @@ fn conflicted_files_from_rev(rev: &str) -> Vec<CompletionCandidate> {
 
         Ok(stdout
             .lines()
-            .filter_map(|line| line.split_whitespace().next())
-            .map(CompletionCandidate::new)
+            .filter_map(|line| {
+                let path = line.split_whitespace().next()?;
+
+                if !path.starts_with(current) {
+                    return None;
+                }
+                if let Some(dir_path) = dir_prefix_from(path, current) {
+                    return Some(CompletionCandidate::new(dir_path));
+                }
+
+                Some(CompletionCandidate::new(path))
+            })
+            .dedup() // directories may occur multiple times
             .collect())
     })
 }
 
-pub fn modified_files() -> Vec<CompletionCandidate> {
-    modified_files_from_rev(("@".into(), None), false)
+pub fn modified_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    modified_files_from_rev(("@".into(), None), false, current)
 }
 
-pub fn all_revision_files() -> Vec<CompletionCandidate> {
-    all_files_from_rev(parse::revision_or_wc())
+pub fn all_revision_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    all_files_from_rev(parse::revision_or_wc(), current)
 }
 
-pub fn modified_revision_files() -> Vec<CompletionCandidate> {
-    modified_files_from_rev((parse::revision_or_wc(), None), false)
+pub fn modified_revision_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    modified_files_from_rev((parse::revision_or_wc(), None), false, current)
 }
 
-pub fn modified_range_files() -> Vec<CompletionCandidate> {
+pub fn modified_range_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     match parse::range() {
-        Some((from, to)) => modified_files_from_rev((from, Some(to)), false),
-        None => modified_files_from_rev(("@".into(), None), false),
+        Some((from, to)) => modified_files_from_rev((from, Some(to)), false, current),
+        None => modified_files_from_rev(("@".into(), None), false, current),
     }
 }
 
-pub fn modified_revision_or_range_files() -> Vec<CompletionCandidate> {
+pub fn modified_revision_or_range_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     if let Some(rev) = parse::revision() {
-        return modified_files_from_rev((rev, None), false);
+        return modified_files_from_rev((rev, None), false, current);
     }
-    modified_range_files()
+    modified_range_files(current)
 }
 
-pub fn revision_conflicted_files() -> Vec<CompletionCandidate> {
-    conflicted_files_from_rev(&parse::revision_or_wc())
+pub fn revision_conflicted_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    conflicted_files_from_rev(&parse::revision_or_wc(), current)
 }
 
 /// Specific function for completing file paths for `jj squash`
-pub fn squash_revision_files() -> Vec<CompletionCandidate> {
+pub fn squash_revision_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     let rev = parse::squash_revision().unwrap_or_else(|| "@".into());
-    modified_files_from_rev((rev, None), false)
+    modified_files_from_rev((rev, None), false, current)
 }
 
 /// Specific function for completing file paths for `jj interdiff`
-pub fn interdiff_files() -> Vec<CompletionCandidate> {
+pub fn interdiff_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     let Some((from, to)) = parse::range() else {
         return Vec::new();
     };
-    modified_files_from_rev((from, Some(to)), true)
+    modified_files_from_rev((from, Some(to)), true, current)
 }
 
 /// Shell out to jj during dynamic completion generation

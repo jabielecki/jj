@@ -14,6 +14,7 @@
 use std::io::Write;
 
 use clap_complete::ArgValueCandidates;
+use clap_complete::ArgValueCompleter;
 use jj_lib::object_id::ObjectId;
 use jj_lib::repo::Repo;
 use tracing::instrument;
@@ -66,7 +67,7 @@ pub(crate) struct SplitArgs {
     #[arg(long, short, alias = "siblings")]
     parallel: bool,
     /// Put these paths in the first commit
-    #[arg(add = ArgValueCandidates::new(complete::modified_revision_files))]
+    #[arg(add = ArgValueCompleter::new(complete::modified_revision_files))]
     paths: Vec<String>,
 }
 
