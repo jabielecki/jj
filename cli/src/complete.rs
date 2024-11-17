@@ -218,18 +218,58 @@ fn revisions(revisions: &str) -> Vec<CompletionCandidate> {
             .arg("--revisions")
             .arg(revisions)
             .arg("--template")
-            .arg(r#"change_id.shortest() ++ " " ++ if(description, description.first_line(), "(no description set)") ++ "\n""#)
+            .arg(
+                r#"
+                change_id.shortest() ++ "\t" ++
+                bookmarks.map(|b| separate("@", b.name(), b.remote())).join(",") ++ "\t" ++
+                tags.map(|t| t.name()).join(",") ++ " " ++
+                if(description, description.first_line(), "(no description set)") ++ "\n"
+                "#,
+            )
             .output()
             .map_err(user_error)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
-        Ok(stdout
-            .lines()
-            .map(|line| {
-                let (id, desc) = split_help_text(line);
-                CompletionCandidate::new(id).help(desc)
-            })
-            .collect())
+        let mut candidates = Vec::new();
+
+        // display order:
+        // - 0: local bookmarks
+        // - 1: tags
+        // - 2: change IDs
+        // - 3: remote bookmarks
+
+        for line in stdout.lines() {
+            let (id_and_refs, desc) = split_help_text(line);
+            let (id, bookmarks_and_tags) = id_and_refs
+                .split_once('\t')
+                .expect("template should contain a tab character");
+            let (bookmarks, tags) = bookmarks_and_tags
+                .split_once('\t')
+                .expect("template should contain two tab characters");
+
+            for b in bookmarks.split(',').filter(|b| !b.is_empty()) {
+                let order = if b.contains('@') { 3 } else { 0 };
+                candidates.push(
+                    CompletionCandidate::new(b)
+                        .help(desc.clone())
+                        .display_order(Some(order)),
+                );
+            }
+            for t in tags.split(',').filter(|t| !t.is_empty()) {
+                candidates.push(
+                    CompletionCandidate::new(t)
+                        .help(desc.clone())
+                        .display_order(Some(1)),
+                );
+            }
+            candidates.push(
+                CompletionCandidate::new(id)
+                    .help(desc)
+                    .display_order(Some(2)),
+            );
+        }
+
+        Ok(candidates)
     })
 }
 
