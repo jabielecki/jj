@@ -14,6 +14,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 * `jj checkout` has been removed. It was deprecated in 0.14.0.
 
+* `jj merge` has been removed. It was deprecated in 0.14.0.
+
 * `jj git push` no longer pushes new bookmarks by default. Use `--allow-new` to
   bypass this restriction.
 
