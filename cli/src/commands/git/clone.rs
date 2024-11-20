@@ -238,8 +238,8 @@ fn do_git_clone(
         }
         GitFetchError::GitImportError(err) => CommandError::from(err),
         GitFetchError::InternalGitError(err) => map_git_error(err),
-        GitFetchError::InvalidBranchPattern => {
-            unreachable!("we didn't provide any globs")
+        GitFetchError::InvalidBranchPattern | GitFetchError::StarInBranchName => {
+            unreachable!("we didn't provide any globs or branch names")
         }
     })?;
     print_git_import_stats(ui, fetch_tx.repo(), &stats.import_stats, true)?;
